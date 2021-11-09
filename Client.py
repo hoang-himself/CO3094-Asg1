@@ -53,68 +53,62 @@ class Client:
 	# THIS GUI IS JUST FOR REFERENCE ONLY, STUDENTS HAVE TO CREATE THEIR OWN GUI 	
 	def createWidgets(self):
 		"""Build GUI."""
-		# Create Setup button
-		self.setup = Button(self.master, width=20, padx=3, pady=3)
-		self.setup["text"] = "Setup"
-		self.setup["command"] = self.setupMovie
-		self.setup.grid(row=1, column=0, padx=2, pady=2)
-		
-		# Create Play button		
-		self.start = Button(self.master, width=20, padx=3, pady=3)
-		self.start["text"] = "Play"
-		self.start["command"] = self.playMovie
-		self.start.grid(row=1, column=1, padx=2, pady=2)
 		
 		# Create Pause button			
-		self.pause = Button(self.master, width=20, padx=3, pady=3)
+		self.pause = Button(self.master, width=20, padx=5, pady=5)
 		self.pause["text"] = "Pause"
 		self.pause["command"] = self.pauseMovie
-		self.pause.grid(row=1, column=2, padx=2, pady=2)
+		self.pause.grid(row=1, column=0, padx=(80, 10), pady=5)
 		
+		# Create Play button		
+		self.start = Button(self.master, width=20, padx=5, pady=5)
+		self.start["text"] = "Play"
+		self.start["command"] = self.playMovie
+		self.start.grid(row=1, column=1, padx=10, pady=5)
+
 		# Create Teardown button
-		self.teardown = Button(self.master, width=20, padx=3, pady=3)
-		self.teardown["text"] = "Teardown"
+		self.teardown = Button(self.master, width=20, padx=5, pady=5)
+		self.teardown["text"] = "Stop"
 		self.teardown["command"] =  self.exitClient
-		self.teardown.grid(row=1, column=3, padx=2, pady=2)
+		self.teardown.grid(row=1, column=2, padx=(10, 80), pady=5)
 		
 		#placeholder canvas
 		self.canvas = Canvas(self.master, height=350)
-		self.canvas.grid(row=0, column=0, columnspan=4, sticky=W+E+N+S, padx=5, pady=5)
+		self.canvas.grid(row=0, column=0, columnspan=3, sticky=W+E+N+S, padx=5, pady=5)
 
 
 		# Create a label to display the movie
 		self.label = Label(self.master)
-		self.label.grid(row=0, column=0, columnspan=4, sticky=W+E+N+S, padx=5, pady=5) 
+		self.label.grid(row=0, column=0, columnspan=3, sticky=W+E+N+S, padx=5, pady=5) 
 	
 
 
 	def setupMovie(self):
-		"""Setup button handler."""
-		if self.state == self.INIT:
-			self.rtspSeq = 0
-			self.numRtpPacket = 0   #number of RTP packets received in a session
+		"""Setup RTSP connection with server."""
+		self.rtspSeq = 0
+		self.numRtpPacket = 0   #number of RTP packets received in a session
 
-			#open RTSP soclet annd connect to server
-			self.connectToServer()
+		#open RTSP soclet annd connect to server
+		self.connectToServer()
 
-			#send SETUP RTSP request
-			self.sendRtspRequest(self.SETUP)
+		#send SETUP RTSP request
+		self.sendRtspRequest(self.SETUP)
 
-			reply = self.recvRtspReply()
+		reply = self.recvRtspReply()
 
-			if reply["statusCode"] != 200:
-				#an error occured
-				print("SETUP failed!")
-				return
+		if reply["statusCode"] != 200:
+			#an error occured
+			print("SETUP failed!")
+			return
 
-			#get the session id from server
-			self.sessionId = reply["session"]
+		#get the session id from server
+		self.sessionId = reply["session"]
 
-			#create a RTP socket to start receiving RTP packets
-			self.openRtpPort()
-			
-			#change the client's state to READY
-			self.state = self.READY
+		#create a RTP socket to start receiving RTP packets
+		self.openRtpPort()
+		
+		#change the client's state to READY
+		self.state = self.READY
 
 
 
@@ -167,6 +161,11 @@ class Client:
 
 	def playMovie(self):
 		"""Play button handler."""
+		if self.state == self.INIT:
+			#automatically set up when user presses Play button (if needed)
+			self.setupMovie()
+			
+
 		if self.state == self.READY:
 			#send the PLAY RTSP request
 			self.sendRtspRequest(self.PLAY)
