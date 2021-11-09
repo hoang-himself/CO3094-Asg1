@@ -92,6 +92,7 @@ class Client:
 		"""Setup button handler."""
 		if self.state == self.INIT:
 			self.rtspSeq = 0
+			self.numRtpPacket = 0   #number of RTP packets received in a session
 
 			#open RTSP soclet annd connect to server
 			self.connectToServer()
@@ -139,6 +140,10 @@ class Client:
 
 			#close RTSP socket => end session here
 			self.rtspSocket.close()
+
+			#diplay some logging
+			print("============= SESSION LOG =============")
+			print(f"Number of RTP packets received: {self.numRtpPacket}\n")
 			
 			
 			
@@ -200,6 +205,8 @@ class Client:
 			#de-serialize the RTP packet
 			packet = RtpPacket()
 			packet.decode(data)
+
+			self.numRtpPacket += 1
 
 			#the sequence number of received frame
 			self.frameNbr = packet.seqNum()

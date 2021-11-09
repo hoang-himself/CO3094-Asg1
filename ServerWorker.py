@@ -51,7 +51,12 @@ class ServerWorker:
 				address = self.clientInfo["rtspSocket"][1][0]
 				port = int(self.clientInfo['rtpPort'])
 				print(f"Session with client ({address}, {port}) closed.\n")
-				
+
+				#display some logging
+				print("============= SESSION LOG =============")
+				print(f"Client: ({address}, {port})")
+				print(f"Number of RTP packets received: {self.numRtpPacket}\n")
+
 				break
 
 
