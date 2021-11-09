@@ -55,7 +55,7 @@ class ServerWorker:
 				#display some logging
 				print("============= SESSION LOG =============")
 				print(f"Client: ({address}, {port})")
-				print(f"Number of RTP packets received: {self.numRtpPacket}\n")
+				print(f"Number of RTP packets sent: {self.numRtpPacket}\n")
 
 				break
 
