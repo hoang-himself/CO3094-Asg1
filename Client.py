@@ -264,22 +264,11 @@ class Client:
 	
 	def recvRtspReply(self):
 		"""Receive RTSP reply from the server."""
-		try:
-			data = self.rtspSocket.recv(256)
-			print(f'Data received:\n{data.decode("utf-8")}\n')
+		data = self.rtspSocket.recv(256)
+		print(f'Data received:\n{data.decode("utf-8")}\n')
 
-			return self.parseRtspReply(data.decode("utf-8"))
-		except:
-			#Connection error => the server might have closed the RTSP connection abruptly
-			#close RTP socket
-			if self.rtpSocket != None:
-				self.rtpSocket.close()
-
-			#close RTSP socket
-			self.rtspSocket.close()
-
-			#close window
-			self.master.destroy()
+		return self.parseRtspReply(data.decode("utf-8"))
+		
 
 
 

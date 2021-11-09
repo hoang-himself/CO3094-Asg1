@@ -5,6 +5,7 @@ from VideoStream import VideoStream
 from RtpPacket import RtpPacket
 
 
+
 class ServerWorker:
 	SETUP = 'SETUP'
 	PLAY = 'PLAY'
@@ -32,35 +33,6 @@ class ServerWorker:
 		self.mainThread = threading.Thread(target=self.recvRtspRequest)
 		self.mainThread.start()
 	
-
-	def isAlive(self):
-		return self.mainThread.is_alive()
-
-
-	def terminate(self):
-		'''
-		Called when the worker needs to be terminated abruptly
-		'''
-		if not self.isAlive():
-			return
-
-		#terminate sendRtp thread is it's active
-		if "worker" in self.clientInfo:
-			if self.clientInfo["worker"].is_alive():
-				self.clientInfo["event"].set()
-				self.clientInfo["worker"].join()
-
-
-		#close the RTP socket		
-		if "rtpSocket" in self.clientInfo:
-			self.clientInfo["rtpSocket"].close()
-
-
-		#this will cause an exception on client side which indicates that the connection is closed
-		#and terminates the main worker thread
-		rtspSocket = self.clientInfo['rtspSocket'][0]
-		rtspSocket.close()
-
 	
 
 	def recvRtspRequest(self):
