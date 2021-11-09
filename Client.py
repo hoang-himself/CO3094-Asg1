@@ -1,7 +1,7 @@
 from tkinter import *
 import tkinter.messagebox
 from PIL import Image, ImageTk
-import socket, threading, sys
+import socket, threading, os
 from pathlib import Path
 from time import sleep
 
@@ -43,6 +43,11 @@ class Client:
 
 		self.rtpSocket = None
 		self.rtspSocket = None
+
+		#make sure that the cache directory exists
+		if not os.path.isdir(CACHE_DIR):
+			os.mkdir(CACHE_DIR, mode=0o777)
+		
 		
 
 	# THIS GUI IS JUST FOR REFERENCE ONLY, STUDENTS HAVE TO CREATE THEIR OWN GUI 	
