@@ -55,7 +55,7 @@ class ServerWorker:
 				data = connSocket.recv(256)
 
 				if data:
-					print("Data received:\n" + data.decode("utf-8"))
+					print("Data received:\n" + data.decode("utf-8") + "\n")
 					self.processRtspRequest(data.decode("utf-8"))
 			except:
 				#the client has sent TEARDOWN request => close session here
@@ -133,7 +133,7 @@ class ServerWorker:
 
 		# Process PLAY request 		
 		elif requestType == self.PLAY:
-			if self.state == self.READY:
+			if self.state == self.READY or self.state == self.PENDING:
 				print("processing PLAY\n")
 				self.state = self.PLAYING
 				
@@ -186,13 +186,32 @@ class ServerWorker:
 
 		#Process LIST request (describe the current stream)
 		elif requestType == self.DESCRIBE:
+			# v = (protocol version)
+			# o = (owner/creator and session identifier)
+			# s = (session name)
+			# i =* (session information)
+			# u =* (URI of description)
+			# e =* (email address)
+			# p =* (phone number)
+			# c =* (connection information - not required if included in all media)
+			# b =* (bandwidth information)
+			# z =* (time zone adjustments)
+			# k =* (encryption key)
+			# a =* (zero or more session attribute lines)
 			print("processing DESCRIBE\n")
-			body = json.dumps({
-				'streams': ['RTP', 'RTSP'],
-				'encoding': 'Mjpeg'
-			})
+			description = {
+				"v": 0,
+				"o": f"elnosabe 2890844526 2890842807 IN IP4 126.16.64.4",
+				"s": "Mjpeg Video Stream",
+				"t": f"2873397496 2873404696",
+				"a": "recvonly",
+				"m": f"video {self.clientInfo['rtpPort']} RTP/AVP 26"
+			}
+			description_s = ""
+			for key in description:
+				description_s += f"{key}={description[key]}\n"
+			body = json.dumps({"description": description_s})
 			self.replyRtsp(self.OK_200, seq[1], body=body)
-
 
 
 		#Process LIST request (describe the current stream)

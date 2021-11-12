@@ -317,12 +317,12 @@ class Client:
 
 	def playMovie(self):
 		"""Play button handler."""
-		if self.state == self.INIT or self.state == self.PENDING:
+		if self.state == self.INIT:
 			#automatically set up when user presses Play button (if needed)
 			self.setupMovie()
 			
 
-		if self.state == self.READY:
+		if self.state == self.READY or self.state == self.PENDING:
 			#send the PLAY RTSP request
 			self.sendRtspRequest(self.PLAY)
 
@@ -387,12 +387,9 @@ class Client:
 			print("DESCRIBE failed!")
 			return
 
-		streams = reply['body']['streams']
-		encoding = reply['body']['encoding']
 
-		print("============ SESSION DESCRIBE ============")
-		print(f"Streams: {streams}")
-		print(f"Encoding: {encoding}")
+		print("============ SESSION DESCRIPTION ============")
+		print(reply["body"]["description"])
 
 
 
@@ -511,7 +508,6 @@ class Client:
 			request = f"DESCRIBE RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
 
 		elif requestCode == self.SWITCH:
-			print(fileName)
 			request = f"SWITCH {fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
 
 
