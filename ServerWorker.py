@@ -1,10 +1,14 @@
 from random import randint
-import threading, socket
+import threading, socket, json, os
+from pathlib import Path
+from tkinter.constants import NO
 
 from VideoStream import VideoStream
 from RtpPacket import RtpPacket
-import json
 
+
+
+VIDEO_DIR = Path('./video')
 
 
 class ServerWorker:
@@ -13,10 +17,14 @@ class ServerWorker:
 	PAUSE = 'PAUSE'
 	TEARDOWN = 'TEARDOWN'
 	FORWARD = 'FORWARD'
+	LIST = 'LIST'			#return list of available videos
+	DESCRIBE = 'DESCRIBE'
+	SWITCH = 'SWITCH'
 	
 	INIT = 0
 	READY = 1
 	PLAYING = 2
+	PENDING = 3
 	state = INIT
 
 	OK_200 = 0
@@ -71,9 +79,6 @@ class ServerWorker:
 		line1 = request[0].split(' ')
 		requestType = line1[0]
 		
-		# Get the media file name
-		filename = line1[1]
-		
 		# Get the RTSP sequence number 
 		seq = request[1].split(' ')
 		
@@ -82,19 +87,28 @@ class ServerWorker:
 			if self.state == self.INIT:
 				# Update state
 				print("processing SETUP\n")
-				
+				# Get the media file name
+				filename = line1[1]
+
 				try:
-					self.clientInfo['videoStream'] = VideoStream(filename)
+					self.clientInfo['videoStream'] = VideoStream(VIDEO_DIR / filename)
 					self.state = self.READY
 				except IOError:
 					self.replyRtsp(self.FILE_NOT_FOUND_404, seq[1])
+					return
 				
 				# Generate a randomized RTSP session ID
 				self.clientInfo['session'] = randint(100000, 999999)
 				
 				# Send RTSP reply
-				self.replyRtsp(self.OK_200, seq[1], setup=True)
+				numFrame = self.clientInfo['videoStream'].getNumFrame()
+				body = json.dumps({
+					"nframe": numFrame,
+					"duration": int(numFrame * 0.064)
+				})
+				self.replyRtsp(self.OK_200, seq[1], body)
 				
+
 				# Get the RTP/UDP port from the last line
 				self.clientInfo['rtpPort'] = request[2].split(' ')[3]
 		
@@ -157,7 +171,57 @@ class ServerWorker:
 			rtspSocket = self.clientInfo["rtspSocket"][0]
 			rtspSocket.close()
 
-			
+
+		#Process LIST request (list all available videos)
+		elif requestType == self.LIST:
+			print("processing LIST\n")
+			#get the list of files in video directory
+			dirpath, dirname, filenames = list(os.walk(VIDEO_DIR))[0]
+			self.videoList = filenames
+			body = json.dumps({
+				"list": self.videoList
+			})
+			self.replyRtsp(self.OK_200, seq[1], body=body)
+
+
+		#Process LIST request (describe the current stream)
+		elif requestType == self.DESCRIBE:
+			print("processing DESCRIBE\n")
+			body = json.dumps({
+				'streams': ['RTP', 'RTSP'],
+				'encoding': 'Mjpeg'
+			})
+			self.replyRtsp(self.OK_200, seq[1], body=body)
+
+
+
+		#Process LIST request (describe the current stream)
+		elif requestType == self.SWITCH:
+			print("processing SWITCH\n")
+			filename = line1[1]
+
+			if self.state == self.PLAYING:
+				#streaming is happening => stop the sendRtp thread
+				self.clientInfo['event'].set()
+
+			self.state = self.PENDING
+
+			try:
+				self.clientInfo["videoStream"] = VideoStream(VIDEO_DIR / filename)
+			except IOError:
+				#error opening the stream => 404
+				self.replyRtsp(self.FILE_NOT_FOUND_404, seq[1])
+				return
+
+			numFrame = self.clientInfo['videoStream'].getNumFrame()
+			body = json.dumps({
+				"nframe": numFrame,
+				"duration": int(numFrame * 0.064)
+			})
+			self.replyRtsp(self.OK_200, seq[1], body=body)
+
+		
+
 
 	def sendRtp(self):
 		"""Send RTP packets over UDP."""
@@ -204,20 +268,17 @@ class ServerWorker:
 		
 		
 
-	def replyRtsp(self, code, seq, setup=False):
+	def replyRtsp(self, code, seq, body=None):
 		"""Send RTSP reply to the client."""
 		reply = ""
 
 		if code == self.OK_200:
 			print("OK 200\n")
 			reply = f"RTSP/1.0 200 OK\nCSeq: {seq}\nSession: {self.clientInfo['session']}"
-			if setup:
-				numFrame = self.clientInfo['videoStream'].getNumFrame()
-				body = json.dumps({
-					"nframe": numFrame,
-					"duration": int(numFrame * 0.064)
-				})
+
+			if body:
 				reply = reply + "\n" + body
+
 
 		# Error messages
 		elif code == self.FILE_NOT_FOUND_404:

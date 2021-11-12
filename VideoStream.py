@@ -46,5 +46,10 @@ class VideoStream:
 		"""total number of frames in the video"""
 		return self.numFrame
 
+
+	def close(self):
+		self.file.close()
+
+
 	
 	

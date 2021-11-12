@@ -1,10 +1,10 @@
 from tkinter import *
 from PIL import Image, ImageTk
-import socket, threading, os
+import socket, threading, os, json, copy
 from pathlib import Path
 import datetime
 from time import sleep
-import json
+
 
 from RtpPacket import *
 
@@ -21,6 +21,7 @@ class Client:
 	INIT = 0
 	READY = 1
 	PLAYING = 2
+	PENDING = 3
 	state = INIT
 	
 	SETUP = 0
@@ -28,6 +29,9 @@ class Client:
 	PAUSE = 2
 	TEARDOWN = 3
 	FORWARD = 4
+	LIST = 5
+	DESCRIBE = 6
+	SWITCH = 7
 	
 
 	# Initiation..
@@ -43,6 +47,9 @@ class Client:
 		self.clockEvent = threading.Event()	#clear the event to pause the clock thread
 		self.clockThread = None
 
+		self.videoList = []
+		self.listButtons = [None] * 3
+
 		self.createWidgets()
 
 		self.serverAddr = serveraddr
@@ -57,6 +64,8 @@ class Client:
 		self.rtpSocket = None
 		self.rtspSocket = None
 
+		
+
 		#make sure that the cache directory exists
 		if not os.path.isdir(CACHE_DIR):
 			os.mkdir(CACHE_DIR, mode=0o777)
@@ -66,24 +75,38 @@ class Client:
 	# THIS GUI IS JUST FOR REFERENCE ONLY, STUDENTS HAVE TO CREATE THEIR OWN GUI 	
 	def createWidgets(self):
 		"""Build GUI."""
-		
-		# Create Pause button			
+		# Create Pause button
 		self.pause = Button(self.master, width=10, padx=10, pady=5)
 		self.pause["text"] = "Pause"
 		self.pause["command"] = self.pauseMovie
-		self.pause.grid(row=2, column=1, padx=(100, 10), pady=(20, 10))
+		self.pause.grid(row=6, column=2, padx=(100, 10), pady=(20, 10))
 		
 		# Create Play button		
 		self.start = Button(self.master, width=10, padx=10, pady=5)
 		self.start["text"] = "Play"
 		self.start["command"] = self.playMovie
-		self.start.grid(row=2, column=2, padx=10, pady=(20, 10))
+		self.start.grid(row=6, column=3, padx=10, pady=(20, 10))
 
 		# Create Teardown button
 		self.teardown = Button(self.master, width=10, padx=10, pady=5)
 		self.teardown["text"] = "Stop"
 		self.teardown["command"] =  self.exitClient
-		self.teardown.grid(row=2, column=3, padx=(10,100), pady=(20, 10))
+		self.teardown.grid(row=6, column=4, padx=(10,100), pady=(20, 10))
+
+		# Create Describe button
+		self.describe = Button(self.master, width=20, padx=10, pady=5, background="#f3e6d8")
+		self.describe["text"] = "Describe"
+		self.describe["command"] = self.describeStream
+		self.describe.grid(row=0, column=0, padx=(40,10))
+
+		# Create List button
+		self.list = Button(self.master, width=20, padx=10, pady=5, background="#f3e6d8")
+		self.list["text"] = "List Videos"
+		self.list["command"] = self.getVideoList
+		self.list.grid(row=1, column=0, padx=(40,10))
+
+		for i in range(3):
+			self.listButtons[i] = Button(self.master, width=20, height=3, padx=10)
 		
 		#video slider
 		self.slider = Scale(
@@ -96,23 +119,24 @@ class Client:
 			troughcolor='#c6ebf6',
 			command=self.updateTimeStamps
 		)
-		self.slider.grid(row=1, column=1, columnspan=3, sticky=W+E)
+
+		self.slider.grid(row=5, column=2, columnspan=3, sticky=W+E)
 		self.slider.bind("<ButtonRelease-1>", self.forwardMovie)
 
 		#timestamps diaplayed at the sides
 		self.stamp1 = Label(self.master, width=10, textvariable=self.timeStamp1)
-		self.stamp1.grid(row=1, column=0, sticky=S)
+		self.stamp1.grid(row=5, column=1, sticky=S)
 
 		self.stamp2 = Label(self.master,  width=10, textvariable=self.timeStamp2)
-		self.stamp2.grid(row=1, column=4, sticky=S)
+		self.stamp2.grid(row=5, column=5, sticky=S)
 
 		#placeholder canvas
-		self.canvas = Canvas(self.master, height=350)
-		self.canvas.grid(row=0, column=0, columnspan=5, sticky=W+E+N+S, padx=5, pady=5)
+		self.canvas = Canvas(self.master, height=400)
+		self.canvas.grid(row=0, column=1, columnspan=5, rowspan=5 ,sticky=W+E+N+S, padx=20, pady=20)
 
 		# Create a label to display the movie
-		self.label = Label(self.master)
-		self.label.grid(row=0, column=0, columnspan=5, sticky=W+E+N+S, padx=5, pady=5) 
+		self.label = Label(self.master, background='black')
+		self.label.grid(row=0, column=1, columnspan=5, rowspan=5, sticky=W+E+N+S, padx=20, pady=20) 
 	
 
 
@@ -124,7 +148,8 @@ class Client:
 			if self.state == self.INIT:		#exitClient() is called
 				break
 			
-			sleep(1)		#move the slider every 1 second
+			#move the slider every 1 second
+			sleep(1)
 			self.slider.set(float(self.slider.get()) + self.sliderTick)
 
 
@@ -140,15 +165,19 @@ class Client:
 
 
 
-	def setTimeLine(self):
+	def setTimeLine(self, timeConfig):
 		#reset the timeline
+		self.numFrame = timeConfig["nframe"]
+		self.videoLength = timeConfig["duration"]
 		self.slider.configure(state=ACTIVE)
 		self.sliderTick = round(100 / self.videoLength, 2)
 		self.timeStamp1.set("00:00:00")
 		self.timeStamp2.set(datetime.timedelta(seconds=self.videoLength))
 
+		self.slider.configure(state=ACTIVE)
 		self.slider.configure(resolution=self.sliderTick)
 		self.slider.set(0)
+		self.slider.configure(state=DISABLED)
 		
 
 
@@ -174,10 +203,7 @@ class Client:
 		self.sessionId = int(reply["Session"])
 
 		#get the number of frames and duration of the video
-
-		self.numFrame = reply["body"]["nframe"]
-		self.videoLength = reply["body"]["duration"]
-		self.setTimeLine()
+		self.setTimeLine(reply["body"])
 
 		#create a RTP socket to start receiving RTP packets
 		self.openRtpPort()
@@ -188,6 +214,41 @@ class Client:
 
 		#change the client's state to READY
 		self.state = self.READY
+
+
+
+	def getVideoList(self):
+		"""Get the video list from server and display it"""
+		if self.state == self.INIT:
+			self.setupMovie()
+
+		
+		self.sendRtspRequest(self.LIST)
+
+		reply = self.recvRtspReply()
+
+		if reply["Status"] != 200:
+			print("LIST failed!")
+			return
+
+		self.videoList = reply['body']['list']
+
+
+		for i in range(3):
+			if i < len(self.videoList):
+				videoName = self.videoList[i]
+				self.listButtons[i].configure(
+					text = videoName,
+					command= lambda x=videoName: self.switchMovie(x)
+				)
+				if videoName == self.fileName:
+					self.listButtons[i].configure(state=DISABLED, background="#cccccc", bd=0)
+				else:
+					self.listButtons[i].configure(state=NORMAL, background="#f0f0f0", bd=2)
+
+				self.listButtons[i].grid(row=(2+i), column=0, padx=(40,10))
+			else:
+				self.listButtons[i].grid_remove()
 
 
 
@@ -253,9 +314,10 @@ class Client:
 			self.clockEvent.clear()
 
 
+
 	def playMovie(self):
 		"""Play button handler."""
-		if self.state == self.INIT:
+		if self.state == self.INIT or self.state == self.PENDING:
 			#automatically set up when user presses Play button (if needed)
 			self.setupMovie()
 			
@@ -313,9 +375,60 @@ class Client:
 
 
 
+	def describeStream(self):
+		if self.state == self.INIT:
+			self.setupMovie()
+
+		self.sendRtspRequest(self.DESCRIBE)
+
+		reply = self.recvRtspReply()
+
+		if reply["Status"] != 200:
+			print("DESCRIBE failed!")
+			return
+
+		streams = reply['body']['streams']
+		encoding = reply['body']['encoding']
+
+		print("============ SESSION DESCRIBE ============")
+		print(f"Streams: {streams}")
+		print(f"Encoding: {encoding}")
+
+
+
+	def switchMovie(self, fileName):
+		"""Switch to a new movie"""
+
+		#stop the clock
+		self.slider.configure(state=DISABLED)
+		self.clockEvent.clear()
+
+		self.sendRtspRequest(self.SWITCH, fileName=fileName)
+
+		reply = self.recvRtspReply()
+
+		if reply['Status'] != 200:
+			print('SWITCH failed!')
+			return
+		
+		self.setTimeLine(reply["body"])
+
+		#update the UI
+		for i in range(3):
+			if self.listButtons[i]["text"] == fileName:
+				self.listButtons[i].configure(state=DISABLED, background="#cccccc", bd=0)
+			elif self.listButtons[i]["text"] == self.fileName:
+				self.listButtons[i].configure(state=NORMAL, background="#f0f0f0", bd=2)
+
+		self.label.configure(image='')
+
+		self.fileName = fileName
+		self.state = self.PENDING
+
+
+
 	def listenRtp(self):		
 		"""Listen for RTP packets."""
-
 		while True:
 			try:
 				data = self.rtpSocket.recvfrom(65536)[0]
@@ -338,7 +451,6 @@ class Client:
 
 
 
-
 	def writeFrame(self, data, frameNbr):
 		"""Write the received frame to a temp image file. Return the image file."""
 		imageFileName = CACHE_FILE_NAME + str(frameNbr) + CACHE_FILE_EXT
@@ -349,6 +461,7 @@ class Client:
 
 		return imageFile
 	
+
 
 	def updateMovie(self, imageFile):
 		"""Update the image file as video frame in the GUI."""
@@ -369,7 +482,7 @@ class Client:
 
 	
 
-	def sendRtspRequest(self, requestCode, frameNbr=None):
+	def sendRtspRequest(self, requestCode, frameNbr=None, fileName=None):
 		"""Send RTSP request to the server."""	
 		#-------------
 		# TO COMPLETE
@@ -391,6 +504,16 @@ class Client:
 		elif requestCode == self.TEARDOWN:
 			request = f"TEARDOWN {self.fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
 
+		elif requestCode == self.LIST:
+			request = f"LIST RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
+
+		elif requestCode == self.DESCRIBE:
+			request = f"DESCRIBE RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
+
+		elif requestCode == self.SWITCH:
+			print(fileName)
+			request = f"SWITCH {fileName} RTSP/1.0\nCSeq: {self.rtspSeq}\nSession: {self.sessionId}"
+
 
 		self.rtspSocket.send(request.encode())
 		self.rtspSeq += 1  	#each time a RTSP request is sent the sequence number increases by 1
@@ -404,7 +527,6 @@ class Client:
 
 		return self.parseRtspReply(data.decode("utf-8"))
 		
-
 
 
 	def parseRtspReply(self, data):
