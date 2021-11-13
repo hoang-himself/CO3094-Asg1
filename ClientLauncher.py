@@ -13,6 +13,7 @@ if __name__ == "__main__":
 		print("[Usage: ClientLauncher.py Server_name Server_port RTP_port Video_file]\n")	
 	
 	root = Tk()
+	root.resizable(False, False)
 	
 	# Create a new client
 	app = Client(root, serverAddr, serverPort, rtpPort, fileName)
