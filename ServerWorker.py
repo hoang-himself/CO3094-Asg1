@@ -1,7 +1,6 @@
 from random import randint
 import threading, socket, json, os
 from pathlib import Path
-from tkinter.constants import NO
 
 from VideoStream import VideoStream
 from RtpPacket import RtpPacket
@@ -104,7 +103,7 @@ class ServerWorker:
 				numFrame = self.clientInfo['videoStream'].getNumFrame()
 				body = json.dumps({
 					"nframe": numFrame,
-					"duration": int(numFrame * 0.064)
+					"duration": round(numFrame * 0.0624)
 				})
 				self.replyRtsp(self.OK_200, seq[1], body)
 				
@@ -199,6 +198,7 @@ class ServerWorker:
 			# k =* (encryption key)
 			# a =* (zero or more session attribute lines)
 			print("processing DESCRIBE\n")
+			
 			description = {
 				"v": 0,
 				"o": f"elnosabe 2890844526 2890842807 IN IP4 126.16.64.4",
@@ -207,9 +207,12 @@ class ServerWorker:
 				"a": "recvonly",
 				"m": f"video {self.clientInfo['rtpPort']} RTP/AVP 26"
 			}
+
 			description_s = ""
+
 			for key in description:
 				description_s += f"{key}={description[key]}\n"
+
 			body = json.dumps({"description": description_s})
 			self.replyRtsp(self.OK_200, seq[1], body=body)
 
@@ -226,6 +229,7 @@ class ServerWorker:
 			self.state = self.PENDING
 
 			try:
+				self.clientInfo["videoStream"].close()
 				self.clientInfo["videoStream"] = VideoStream(VIDEO_DIR / filename)
 			except IOError:
 				#error opening the stream => 404

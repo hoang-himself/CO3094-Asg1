@@ -1,9 +1,9 @@
 from tkinter import *
 from PIL import Image, ImageTk
-import socket, threading, os, json, copy
+import socket, threading, os, json
 from pathlib import Path
 import datetime
-from time import sleep
+from time import sleep, time
 
 
 from RtpPacket import *
@@ -426,10 +426,12 @@ class Client:
 
 	def listenRtp(self):		
 		"""Listen for RTP packets."""
+		# start = 0
+
 		while True:
 			try:
 				data = self.rtpSocket.recvfrom(65536)[0]
-			except Exception as e:
+			except:
 				#socket error or timeout => PAUSE or TEARDOWN command issued
 				break
 
@@ -445,6 +447,12 @@ class Client:
 
 			#display the frame
 			self.updateMovie(imageFile)
+
+			# if self.frameNbr == 1:
+			# 	start = time()
+			# elif self.frameNbr == self.numFrame:
+			# 	print(f"Video duration: {time() - start} (seconds)")
+
 
 
 
